@@ -1,81 +1,75 @@
 import { Request, Response } from 'express';
-
-const toDos = [
-    { id: 1, text: 'Buy Milk', completedAt: new Date() },
-    { id: 2, text: 'Buy Bread', completedAt: null },
-    { id: 3, text: 'Buy Coffee', completedAt: new Date() },
-];
+import { prisma } from '../../data/postgres';
+import { CreateToDoDto, UpdateToDoDto } from '../../domain/dtos/todos';
 
 export class ToDosController {
     //* DI
     constructor() {}
 
-    public getToDos = (req: Request, res: Response) => {
+    public getToDos = async (req: Request, res: Response) => {
+        const toDos = await prisma.toDo.findMany();
         return res.json(toDos);
     };
 
-    public getToDoById = (req: Request, res: Response) => {
+    public getToDoById = async (req: Request, res: Response) => {
         const id = Number(req.params.id);
 
         if (isNaN(id)) return res.status(400).json({ message: 'Invalid ID' });
 
-        const toDo = toDos.find(toDo => toDo.id === id);
+        const toDo = await prisma.toDo.findFirst({ where: { id } });
 
         toDo
             ? res.json(toDo)
             : res.status(404).json({ message: 'ToDo not found' });
     };
 
-    public createToDo = (req: Request, res: Response) => {
-        const { text } = req.body;
+    public createToDo = async (req: Request, res: Response) => {
+        const [error, createToDoDto] = CreateToDoDto.create(req.body);
+        if (error) return res.status(400).json({ message: error });
 
-        if (!text) return res.status(400).json({ message: 'Invalid text' });
+        const todo = await prisma.toDo.create({ data: createToDoDto! });
 
-        const newToDo = {
-            id: toDos.length + 1,
-            text,
-            completedAt: new Date(),
-        };
-
-        toDos.push(newToDo);
-
-        return res.json(newToDo);
+        return res.json(todo);
     };
 
-    public updateToDo = (req: Request, res: Response) => {
+    public updateToDo = async (req: Request, res: Response) => {
         const id = Number(req.params.id);
-        const { text, completedAt } = req.body;
-
-        if (isNaN(id)) return res.status(400).json({ message: 'Invalid ID' });
-
-        if (!text) return res.status(400).json({ message: 'Invalid text' });
-
-        const toDo = toDos.find(toDo => toDo.id === id);
+                
+        const [error, updateToDoDto] = UpdateToDoDto.create({ ...req.body, id });
+        
+        if (error) return res.status(400).json({ message: error });
+        
+        const toDo = await prisma.toDo.findFirst({ where: { id } });
 
         if (!toDo) return res.status(404).json({ message: 'ToDo not found' });
 
-        console.log(completedAt);
-        
-        toDo.completedAt =
-            completedAt === null ? null : new Date(completedAt || toDo.completedAt);
+        const updateToDo = await prisma.toDo.update({
+            where: { id },
+            data: updateToDoDto!.values,
+        });
 
-        toDo.text = text;
-
-        return res.json(toDo);
+        return res.json(updateToDo);
     };
 
-    public deleteToDo = (req: Request, res: Response) => {
+    public deleteToDo = async (req: Request, res: Response) => {
         const id = Number(req.params.id);
 
         if (isNaN(id)) return res.status(400).json({ message: 'Invalid ID' });
 
-        const toDoIndex = toDos.findIndex(toDo => toDo.id === id);
+        const toDo = await prisma.toDo.findFirst({ where: { id } });
 
-        if (toDoIndex === -1)
-            return res.status(404).json({ message: 'ToDo not found' });
+        if (!toDo)
+            return res
+                .status(404)
+                .json({ message: `ToDo whit id ${id} not found` });
 
-        toDos.splice(toDoIndex, 1);
+        const toDoDeleted = await prisma.toDo.delete({ where: { id } });
 
-        return res.json({ message: 'ToDo deleted' });
+        if (!toDoDeleted)
+            return res
+                .status(404)
+                .json({ message: `ToDo with id ${id} not found` });
+
+        return res.json({ toDoDeleted, message: 'ToDo deleted' });
     };
 }
