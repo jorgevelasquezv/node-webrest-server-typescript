@@ -8,3 +8,5 @@ export * from './usecases/todo/delete-todo';
 export * from './usecases/todo/get-todo';
 export * from './usecases/todo/get-todos';
 export * from './usecases/todo/update-todo';
+
+export * from './errors/custom.error';
