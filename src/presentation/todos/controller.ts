@@ -1,75 +1,63 @@
 import { Request, Response } from 'express';
-import { prisma } from '../../data/postgres';
 import { CreateToDoDto, UpdateToDoDto } from '../../domain/dtos/todos';
+import { GetToDo, GetToDos, ToDoRepository, CreateToDo, UpdateToDo, DeleteToDo } from '../../domain';
 
 export class ToDosController {
     //* DI
-    constructor() {}
+    constructor(private readonly toDoRepository: ToDoRepository) {}
 
-    public getToDos = async (req: Request, res: Response) => {
-        const toDos = await prisma.toDo.findMany();
-        return res.json(toDos);
+    public getToDos = (req: Request, res: Response) => {
+        new GetToDos(this.toDoRepository)
+            .execute()
+            .then(toDos => res.json(toDos))
+            .catch(error => res.status(400).json({ error: error.message }));
     };
 
-    public getToDoById = async (req: Request, res: Response) => {
+    public getToDoById = (req: Request, res: Response) => {
         const id = Number(req.params.id);
 
         if (isNaN(id)) return res.status(400).json({ message: 'Invalid ID' });
 
-        const toDo = await prisma.toDo.findFirst({ where: { id } });
-
-        toDo
-            ? res.json(toDo)
-            : res.status(404).json({ message: 'ToDo not found' });
+        new GetToDo(this.toDoRepository)
+            .execute(id)
+            .then(toDo => res.json(toDo))
+            .catch(error => res.status(404).json({ error: error.message }));
     };
 
-    public createToDo = async (req: Request, res: Response) => {
+    public createToDo = (req: Request, res: Response) => {
         const [error, createToDoDto] = CreateToDoDto.create(req.body);
         if (error) return res.status(400).json({ message: error });
 
-        const todo = await prisma.toDo.create({ data: createToDoDto! });
-
-        return res.json(todo);
+        new CreateToDo(this.toDoRepository)
+            .execute(createToDoDto!)
+            .then(todo => res.json(todo))
+            .catch(error => res.status(400).json({ error: error.message }));
     };
 
-    public updateToDo = async (req: Request, res: Response) => {
+    public updateToDo =  (req: Request, res: Response) => {
         const id = Number(req.params.id);
-                
-        const [error, updateToDoDto] = UpdateToDoDto.create({ ...req.body, id });
-        
-        if (error) return res.status(400).json({ message: error });
-        
-        const toDo = await prisma.toDo.findFirst({ where: { id } });
 
-        if (!toDo) return res.status(404).json({ message: 'ToDo not found' });
-
-        const updateToDo = await prisma.toDo.update({
-            where: { id },
-            data: updateToDoDto!.values,
+        const [error, updateToDoDto] = UpdateToDoDto.create({
+            ...req.body,
+            id,
         });
 
-        return res.json(updateToDo);
+        if (error) return res.status(400).json({ message: error });
+
+        new UpdateToDo(this.toDoRepository)
+            .execute(updateToDoDto!)
+            .then(updateToDo => res.json(updateToDo))
+            .catch(error => res.status(404).json({ error: error.message }));
     };
 
-    public deleteToDo = async (req: Request, res: Response) => {
+    public deleteToDo = (req: Request, res: Response) => {
         const id = Number(req.params.id);
 
         if (isNaN(id)) return res.status(400).json({ message: 'Invalid ID' });
 
-        const toDo = await prisma.toDo.findFirst({ where: { id } });
-
-        if (!toDo)
-            return res
-                .status(404)
-                .json({ message: `ToDo whit id ${id} not found` });
-
-        const toDoDeleted = await prisma.toDo.delete({ where: { id } });
-
-        if (!toDoDeleted)
-            return res
-                .status(404)
-                .json({ message: `ToDo with id ${id} not found` });
-
-        return res.json({ toDoDeleted, message: 'ToDo deleted' });
+        new DeleteToDo(this.toDoRepository)
+            .execute(id)
+            .then(toDo => res.json(toDo))
+            .catch(error => res.status(404).json({ error: error.message }));
     };
 }
